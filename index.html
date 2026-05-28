@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>This is London</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@3.3.0/dist/webgazer.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --asphalt-black: #1C1B1A;
+            --stone-grey: #6E6761;
+            --fog-white: #E7E1DB;
+            --bus-red: #B32025;
+            --font-georgia: 'Georgia', 'Times New Roman', serif;
+            --font-inter: 'Inter', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+        }
+
+        body {
+            background-color: var(--asphalt-black);
+            color: var(--fog-white);
+            font-family: var(--font-inter);
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        body.hide-cursor {
+            cursor: none !important;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--asphalt-black);
+        }
+
+        .scene-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            filter: sepia(30%) grayscale(40%) contrast(120%) brightness(0.6);
+            transition: opacity 2s ease, transform 15s linear; 
+            opacity: 0;
+            transform: scale(1.05); 
+        }
+
+        .scene-bg.active {
+            opacity: 1;
+            filter: sepia(20%) grayscale(20%) contrast(120%) brightness(0.85);
+        }
+
+        .scene-bg.ambient-pan {
+            transform: scale(1.15); 
+        }
+
+        .cinematic-bars::before, .cinematic-bars::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 10vh;
+            background: var(--asphalt-black);
+            z-index: 50;
+        }
+        .cinematic-bars::before { top: 0; }
+        .cinematic-bars::after { bottom: 0; }
+
+        #start-screen { background-color: var(--asphalt-black); }
+        .title-georgia { font-family: var(--font-georgia); color: var(--fog-white); letter-spacing: 0.15em; }
+        .subtitle-inter { font-family: var(--font-inter); color: var(--stone-grey); letter-spacing: 0.1em; text-transform: uppercase; }
+
+        #calibration-screen {
+            position: absolute;
+            inset: 0;
+            background: var(--asphalt-black);
+            z-index: 9000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-mono);
+        }
+
+        .calib-point {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: 2px solid var(--fog-white);
+            border-radius: 50%;
+            cursor: crosshair;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.8;
+        }
+
+        .calib-point::after {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--fog-white);
+            border-radius: 50%;
+        }
+
+        .calib-point:hover { transform: scale(1.2); border-color: var(--bus-red); }
+        .calib-point:hover::after { background: var(--bus-red); }
+        .calib-point.clicked { border-color: var(--stone-grey); opacity: 0.3; pointer-events: none; }
+        .calib-point.clicked::after { background: var(--stone-grey); }
+
+        #eye-tracker-window {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 140px;
+            height: 70px; 
+            border: 1px solid var(--stone-grey);
+            border-radius: 4px;
+            z-index: 9999;
+            background: #000;
+            display: none;
+            pointer-events: none; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.8);
+        }
+
+        .cctv-label {
+            position: absolute;
+            top: 4px;
+            left: 6px;
+            font-family: var(--font-mono);
+            color: rgba(255,255,255,0.6);
+            font-size: 10px;
+            z-index: 2;
+        }
+
+        .cctv-rec {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            font-family: var(--font-mono);
+            color: var(--bus-red);
+            font-size: 10px;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .cctv-rec::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background-color: var(--bus-red);
+            border-radius: 50%;
+            animation: recBlink 1.5s infinite;
+        }
+
+        @keyframes recBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        video#webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1) scale(2.0); 
+            filter: grayscale(80%) contrast(150%) brightness(0.8);
+            opacity: 0.8;
+            object-position: 50% 50%; 
+        }
+
+        .gaze-target {
+            position: absolute;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: transparent;
+            z-index: 40;
+            pointer-events: none;
+        }
+
+        #hud { position: absolute; inset: 0; z-index: 60; pointer-events: none; }
+        
+        .wave-container { display: flex; align-items: flex-end; gap: 3px; height: 20px; opacity: 0.8; transition: opacity 0.3s; }
+        .wave-bar { width: 2px; background-color: var(--fog-white); height: 2px; transition: height 0.1s ease; }
+        .wave-container.playing .wave-bar { animation: waveAnim 1s infinite ease-in-out; }
+        .wave-container.playing .wave-bar:nth-child(1) { animation-delay: 0.0s; }
+        .wave-container.playing .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+        .wave-container.playing .wave-bar:nth-child(3) { animation-delay: 0.4s; }
+        .wave-container.playing .wave-bar:nth-child(4) { animation-delay: 0.1s; }
+        .wave-container.playing .wave-bar:nth-child(5) { animation-delay: 0.5s; }
+        .wave-container.playing .wave-bar:nth-child(6) { animation-delay: 0.3s; }
+        .wave-container.playing .wave-bar:nth-child(7) { animation-delay: 0.1s; }
+        @keyframes waveAnim { 0%, 100% { height: 4px; } 50% { height: 18px; } }
+
+        #subtitle-container { position: absolute; z-index: 45; transition: all 0.5s ease; opacity: 0; filter: blur(5px); pointer-events: none; }
+        #subtitle-container.focused { opacity: 1; filter: blur(0px); }
+        #subtitle {
+            font-family: var(--font-georgia);
+            font-size: 1.3rem;
+            line-height: 1.8;
+            background: transparent;
+            padding: 0;
+            display: inline-block;
+            color: var(--fog-white); 
+            text-shadow: 0px 2px 10px rgba(0,0,0,0.9), 0px 0px 15px rgba(0,0,0,1), 0px 0px 30px rgba(0,0,0,0.8);
+        }
+
+        #bus-transition {
+            position: absolute;
+            top: 0;
+            right: -120vw;
+            width: 120vw;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            z-index: 100;
+            box-shadow: -20px 0 50px rgba(0,0,0,0.9);
+        }
+        .bus-drive { animation: driveBy 1.5s cubic-bezier(0.1, 0.7, 0.1, 1) forwards; }
+        @keyframes driveBy { 0% { right: -120vw; } 40% { right: -5vw; } 100% { right: 100vw; } }
+
+        .choice-btn {
+            background: transparent;
+            border: 1px solid var(--stone-grey);
+            color: var(--fog-white);
+            padding: 12px 30px;
+            font-family: var(--font-mono);
+            cursor: pointer; 
+            transition: all 0.3s;
+            margin: 0 10px;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .choice-btn:hover { border-color: var(--fog-white); background: rgba(255,255,255,0.05); }
+
+        @keyframes btnPulse {
+            0% { box-shadow: 0 0 0 0 rgba(231, 225, 219, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(231, 225, 219, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 225, 219, 0); }
+        }
+        .btn-ready {
+            animation: btnPulse 2s infinite;
+            border-color: var(--fog-white) !important;
+            background-color: rgba(255,255,255,0.08) !important;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container" class="cinematic-bars">
+    
+    <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center z-50 transition-opacity duration-1000">
+        <h1 class="text-5xl mb-4 title-georgia">THIS IS LONDON</h1>
+        <p class="mb-20 subtitle-inter text-sm">A WEB GAME ABOUT THOSE INVISIBLE</p>
+        
+        <div class="text-sm text-[var(--fog-white)] mb-12 max-w-lg text-left font-mono border-l-2 border-[var(--stone-grey)] pl-6">
+            <span class="font-bold tracking-widest text-[var(--stone-grey)] mb-4 block">CORE INTERACTION & RULES</span>
+            <p class="leading-relaxed text-[var(--stone-grey)]">
+                Please allow camera access for eye-tracking calibration.<br><br>
+                Once the experience begins, the mouse cursor will be deactivated.<br><br>The top camera will track your gaze in real time.
+            </p>
+        </div>
+        
+        <button id="start-btn" class="choice-btn" style="cursor: not-allowed; opacity: 0.5; padding: 15px 40px; font-size: 1.2rem;" disabled>INITIALIZING SYSTEM...</button>
+    </div>
+
+    <!-- 校准界面 -->
+    <div id="calibration-screen">
+        <div class="text-center mb-20 pointer-events-none">
+            <h2 class="text-xl mb-2 text-[var(--fog-white)] tracking-widest">CALIBRATION</h2>
+            <p id="calib-instruction-text" class="text-xs text-[var(--stone-grey)] tracking-widest">FOLLOW THE DOTS WITH YOUR EYES AND CLICK (0/5)</p>
+        </div>
+        <div class="calib-point" id="pt1" style="top: 10%; left: 10%;"></div>
+        <div class="calib-point" id="pt2" style="top: 10%; right: 10%;"></div>
+        <div class="calib-point" id="pt3" style="top: 50%; left: 50%; transform: translate(-50%, -50%);"></div>
+        <div class="calib-point" id="pt4" style="bottom: 10%; left: 10%;"></div>
+        <div class="calib-point" id="pt5" style="bottom: 10%; right: 10%;"></div>
+    </div>
+
+    <div id="hud" class="hidden">
+        <div class="absolute top-[4vh] left-10 font-mono text-[var(--stone-grey)] tracking-widest text-xs z-50" id="chapter-container">
+            CHAPTER <br><span id="chapter-num" class="text-[var(--fog-white)] text-sm">01 / 03</span>
+        </div>
+        <div class="absolute bottom-[4vh] left-10 font-inter text-[var(--stone-grey)] text-[10px] tracking-[0.2em] z-50">
+            LOOK CAREFULLY.
+        </div>
+        <div class="absolute bottom-[4vh] right-10 font-inter text-[var(--bus-red)] text-[10px] tracking-[0.2em] z-50">
+            EVERY STORY EXISTS IN THE SHADOWS.
+        </div>
+        <div class="absolute bottom-[5vh] left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-50" id="status-panel">
+            <div id="status-indicator" class="font-mono text-[var(--stone-grey)] text-xs tracking-widest flex items-center gap-2 border border-[var(--stone-grey)] px-4 py-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-[var(--stone-grey)]" id="status-dot"></span>
+                <span id="status-text">SYSTEM STANDBY</span>
+            </div>
+            <div id="waveform" class="wave-container">
+                <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="eye-tracker-window">
+        <div class="cctv-label">CCTV</div>
+        <div class="cctv-rec">REC</div>
+        <video id="webcam" autoplay muted playsinline></video>
+    </div>
+
+    <div id="scene-bg-wide" class="scene-bg"></div>
+    <div id="scene-bg-close" class="scene-bg"></div>
+
+    <div id="gaze-target" class="gaze-target hidden"></div>
+
+    <div id="subtitle-container">
+        <div id="subtitle"></div>
+    </div>
+
+    <div id="choice-ui" class="absolute bottom-[20vh] w-full text-center z-50 hidden flex justify-center gap-8">
+        <button class="choice-btn" onclick="makeChoice('give')">GIVE COINS <span>&rarr;</span></button>
+        <button class="choice-btn" onclick="makeChoice('leave')">WALK AWAY <span>&rarr;</span></button>
+    </div>
+
+    <div id="bus-transition"></div>
+</div>
+
+<script>
+    // ==========================================
+    // 核心引擎升级：真实大模型语音合成 (TTS) 系统
+    // 如果你在本地VS Code运行，请把你的 Gemini API Key 填入下面的引号中！
+    // 否则在本地将默认降级使用浏览器自带的机械合成音。
+    // ==========================================
+    const apiKey = ""; 
+
+    // --- 剧本与多场景配置 ---
+    const SCENES = [
+        {
+            type: 'ambient',
+            wideImg: 'street1.png', 
+            audioConfig: { low: 500, lowGain: 0.2, high: 1500, highGain: 0.1 }
+        },
+        {
+            type: 'ambient',
+            wideImg: 'street2.png', 
+            audioConfig: { low: 400, lowGain: 0.3, high: 1000, highGain: 0.2 }
+        },
+        {
+            type: 'interactive',
+            id: 'fiddler',
+            wideImg: 'smallguitar.png',
+            closeImg: 'bigguitar.png',
+            transImg: 'busguitar.png',
+            wideTarget: { left: '30vw', top: '20vh', width: '40vw', height: '60vh' },
+            closeTarget: { left: '10vw', top: '25vh', width: '80vw', height: '45vh' },
+            textLayout: { left: '55%', top: '35%', width: '40%', textAlign: 'left' },
+            // AI 音色模型配置：沧桑、有厚度的男声
+            aiVoice: 'Fenrir', 
+            voiceConfig: { pitch: 1.1, rate: 0.9 }, // 降级使用的机械音参数
+            audioConfig: { low: 800, lowGain: 0.25, high: 2000, highGain: 0.2 }, 
+            storyLines: [
+                "You see this fiddle? It used to play at weddings back home. Now it begs at Victoria Station.",
+                "It all started with a bad harvest. The crops failed, the land dried up, and my family had absolutely nothing to eat.",
+                "I had no choice. I went to the local moneylender for a small loan, just to get us through the winter.",
+                "But the interest doubled, then tripled. Before the snow even melted, the loan shark threatened to take our family's house.",
+                "Getting on that bus to London... coming here to beg, was my absolute last hope.",
+                "Now I stand by these doors for eighteen hours a day. But every pound goes straight back to the debt collectors."
+            ]
+        },
+        {
+            type: 'interactive',
+            id: 'addict',
+            wideImg: 'smalldrug.png',
+            closeImg: 'bigdrug.png',
+            transImg: 'busdrug.png',
+            wideTarget: { left: '5vw', top: '40vh', width: '40vw', height: '50vh' },
+            closeTarget: { left: '10vw', top: '25vh', width: '80vw', height: '45vh' },
+            textLayout: { left: '8%', top: '40%', width: '40%', textAlign: 'left' },
+            // AI 音色模型配置：虚弱、低缓、疲惫的声音
+            aiVoice: 'Charon', 
+            voiceConfig: { pitch: 0.7, rate: 0.75 }, 
+            audioConfig: { low: 400, lowGain: 0.5, high: 3000, highGain: 0.3 }, 
+            storyLines: [
+                "'Sanctioned'. That's the polite word the government uses.",
+                "You miss one Jobcentre appointment because you're throwing up in a free clinic, and they cut your Universal Credit to zero. Just like that.",
+                "The council put metal spikes on the dry benches so we can't lie down.",
+                "Then they offer us a bed in a hostel where the dealers are waiting right by the front door.",
+                "Out here, it's actually cheaper to buy a bag of Spice than a hot meal.",
+                "One puff... and the concrete doesn't feel cold anymore. You don't feel the damp. You don't feel the disgusted stares."
+            ]
+        },
+        {
+            type: 'interactive',
+            id: 'lawyer',
+            wideImg: 'smalllawyer.png',
+            closeImg: 'biglawyer.png',
+            transImg: 'buslawyer.png',
+            wideTarget: { left: '5vw', top: '30vh', width: '40vw', height: '60vh' },
+            closeTarget: { left: '10vw', top: '25vh', width: '80vw', height: '45vh' },
+            textLayout: { left: '52%', top: '30%', width: '42%', textAlign: 'left' },
+            // AI 音色模型配置：专业但充满破碎感的英伦男声
+            aiVoice: 'Zephyr', 
+            voiceConfig: { pitch: 0.4, rate: 0.85 }, 
+            audioConfig: { low: 150, lowGain: 0.6, high: 800, highGain: 0.05 }, 
+            storyLines: [
+                "They call me 'The Lawyer' down here. They think it's a joke.",
+                "But I actually was a lawyer. I had a practice, a mortgage, a life exactly like the people walking on the street above us.",
+                "Then came the bankruptcy. A chain of bad debts, a market crash, and the banks took absolutely everything.",
+                "You think it takes a lifetime to fall to the bottom of society? It takes exactly six months.",
+                "One day you are arguing cases in court, the next you are dragging a granny trolley down into this underpass beneath Park Lane.",
+                "Sometimes, a young professional in a sharp suit walks past, covers his nose, and tells me to go get a job."
+            ]
+        },
+        {
+            type: 'ambient',
+            wideImg: 'street3.png',
+            audioConfig: { low: 400, lowGain: 0.3, high: 1200, highGain: 0.2 }
+        },
+        {
+            type: 'ambient',
+            wideImg: 'street4.png',
+            audioConfig: { low: 500, lowGain: 0.2, high: 1500, highGain: 0.1 }
+        }
+    ];
+
+    const STATE = { START: 0, AMBIENT: 1, WIDE: 2, CLOSE_UP: 3, CHOICE: 4, BUS: 5 };
+    let currentState = STATE.START;
+    let isLooking = false;
+    let currentSceneIndex = 0;
+    let interactiveChapterCount = 1;
+    
+    // 状态机加入了 FETCHING，处理音频请求时的网络延迟
+    let lineState = 'IDLE'; 
+    let lookAwayTimer = null;
+    const BLINK_TOLERANCE_MS = 800; 
+    
+    let smoothGazeX = window.innerWidth / 2;
+    let smoothGazeY = window.innerHeight / 2;
+    let currentEyeCropX = 50; 
+    let currentEyeCropY = 50;
+    
+    const dom = {
+        startScreen: document.getElementById('start-screen'),
+        startBtn: document.getElementById('start-btn'),
+        calibScreen: document.getElementById('calibration-screen'),
+        camWindow: document.getElementById('eye-tracker-window'),
+        video: document.getElementById('webcam'),
+        bgWide: document.getElementById('scene-bg-wide'),
+        bgClose: document.getElementById('scene-bg-close'),
+        gazeTarget: document.getElementById('gaze-target'),
+        subContainer: document.getElementById('subtitle-container'),
+        subtitle: document.getElementById('subtitle'),
+        choiceUI: document.getElementById('choice-ui'),
+        bus: document.getElementById('bus-transition'),
+        hud: document.getElementById('hud'),
+        chapterNum: document.getElementById('chapter-num'),
+        chapterContainer: document.getElementById('chapter-container'),
+        statusText: document.getElementById('status-text'),
+        statusDot: document.getElementById('status-dot'),
+        statusPanel: document.getElementById('status-panel'),
+        waveform: document.getElementById('waveform')
+    };
+
+    let checkWebgazerTimer = setInterval(() => {
+        if (typeof webgazer !== 'undefined') {
+            clearInterval(checkWebgazerTimer);
+            dom.startBtn.innerText = "START CALIBRATION ➔";
+            dom.startBtn.disabled = false;
+            dom.startBtn.classList.add('btn-ready');
+        }
+    }, 500);
+
+    let ukVoices = [];
+    let currentUtterance = null;
+    let currentLineIndex = 0;
+    let currentCharIndex = 0;
+    let timingTimers = [];
+    
+    // 全新：AI 真实发声系统
+    const audioCache = {};
+    const currentAudioElement = new Audio();
+    let typingSpeedMs = 50; // 根据真实声音时长动态计算
+
+    function clearTimingTimers() {
+        timingTimers.forEach(clearTimeout);
+        timingTimers = [];
+    }
+
+    function initSpeech() {
+        if ('speechSynthesis' in window) {
+            ukVoices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('en-GB'));
+        }
+    }
+    
+    // PCM16 转 WAV 播放格式 (用于解析大模型吐出的生肉音频)
+    function pcmToWavUrl(base64Pcm, sampleRate = 24000) {
+        const binaryString = window.atob(base64Pcm);
+        const pcmData = new Int16Array(binaryString.length / 2);
+        for (let i = 0; i < binaryString.length; i += 2) {
+            pcmData[i/2] = (binaryString.charCodeAt(i+1) << 8) | binaryString.charCodeAt(i);
+        }
+        const numChannels = 1;
+        const blockAlign = numChannels * 2;
+        const byteRate = sampleRate * blockAlign;
+        const dataSize = pcmData.length * 2;
+
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+
+        function writeString(offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, byteRate, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, 16, true);
+        writeString(36, 'data');
+        view.setUint32(40, dataSize, true);
+
+        let offset = 44;
+        for (let i = 0; i < pcmData.length; i++, offset += 2) {
+            view.setInt16(offset, pcmData[i], true);
+        }
+
+        const blob = new Blob([view], { type: 'audio/wav' });
+        return URL.createObjectURL(blob);
+    }
+
+    // 网络请求大模型生成 TTS 语音
+    async function fetchAIAudio(text, voiceName) {
+        if (!apiKey) return null; 
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+        const payload = {
+            contents: [{ parts: [{ text: text }] }],
+            generationConfig: {
+                responseModalities: ["AUDIO"],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
+            },
+            model: "gemini-2.5-flash-preview-tts"
+        };
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) return null;
+                const result = await response.json();
+                const base64Pcm = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                if (!base64Pcm) return null;
+                return pcmToWavUrl(base64Pcm); 
+            } catch (err) {
+                if (attempt === 2) return null;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+    }
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let mainGain = audioCtx.createGain();
+    mainGain.connect(audioCtx.destination);
+    
+    let lowNoiseFilter, lowNoiseGain, highNoiseFilter, highNoiseGain;
+
+    function initAudio() {
+        const bufferSize = audioCtx.sampleRate * 2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        let noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        noiseSource.loop = true;
+
+        lowNoiseFilter = audioCtx.createBiquadFilter();
+        lowNoiseFilter.type = 'lowpass';
+        lowNoiseGain = audioCtx.createGain();
+        lowNoiseGain.gain.value = 0;
+
+        highNoiseFilter = audioCtx.createBiquadFilter();
+        highNoiseFilter.type = 'highpass';
+        highNoiseGain = audioCtx.createGain();
+        highNoiseGain.gain.value = 0;
+
+        noiseSource.connect(lowNoiseFilter).connect(lowNoiseGain).connect(mainGain);
+        noiseSource.connect(highNoiseFilter).connect(highNoiseGain).connect(mainGain);
+        noiseSource.start();
+    }
+
+    function applyAudioConfig(config) {
+        const now = audioCtx.currentTime;
+        lowNoiseFilter.frequency.setTargetAtTime(config.low, now, 1);
+        lowNoiseGain.gain.setTargetAtTime(config.lowGain, now, 1);
+        highNoiseFilter.frequency.setTargetAtTime(config.high, now, 1);
+        highNoiseGain.gain.setTargetAtTime(config.highGain, now, 1);
+    }
+
+    function playBusSound() {
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(40, audioCtx.currentTime); 
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.6);
+        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 1.5);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 0.6);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+        osc.connect(gain).connect(mainGain);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.8);
+    }
+
+    function startDynamicEyeCrop() {
+        function cropLoop() {
+            requestAnimationFrame(cropLoop);
+            if (typeof webgazer !== 'undefined' && webgazer.getTracker) {
+                let tracker = webgazer.getTracker();
+                if (tracker && tracker.getPositions) {
+                    let positions = tracker.getPositions(); 
+                    if (positions && positions.length > 0) {
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        for(let i=0; i<positions.length; i++) {
+                            let p = positions[i];
+                            if(p[0] < minX) minX = p[0];
+                            if(p[1] < minY) minY = p[1];
+                            if(p[0] > maxX) maxX = p[0];
+                            if(p[1] > maxY) maxY = p[1];
+                        }
+                        let faceCenterX = (minX + maxX) / 2;
+                        let eyesY = minY + (maxY - minY) * 0.35; 
+                        let wgVideoFeed = document.getElementById('webgazerVideoFeed');
+                        if (wgVideoFeed && wgVideoFeed.videoWidth > 0) {
+                            let targetX = (faceCenterX / wgVideoFeed.videoWidth) * 100;
+                            let targetY = (eyesY / wgVideoFeed.videoHeight) * 100;
+                            currentEyeCropX += (targetX - currentEyeCropX) * 0.1;
+                            currentEyeCropY += (targetY - currentEyeCropY) * 0.1;
+                            if (dom.video) {
+                                dom.video.style.objectPosition = `${100 - currentEyeCropX}% ${currentEyeCropY}%`;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        cropLoop();
+    }
+
+    let calibrationClicks = 0;
+    const TOTAL_CALIB_POINTS = 5;
+
+    function setupCalibration() {
+        const points = document.querySelectorAll('.calib-point');
+        const instructionText = document.getElementById('calib-instruction-text');
+        points.forEach(pt => {
+            pt.addEventListener('click', function(e) {
+                if(this.classList.contains('clicked')) return;
+                this.classList.add('clicked');
+                calibrationClicks++;
+                if (instructionText) instructionText.innerText = `FOLLOW THE DOTS WITH YOUR EYES AND CLICK (${calibrationClicks}/${TOTAL_CALIB_POINTS})`;
+                
+                if (typeof webgazer !== 'undefined') webgazer.recordScreenPosition(e.clientX, e.clientY, 'click');
+                
+                if(calibrationClicks >= TOTAL_CALIB_POINTS) {
+                    if (instructionText) instructionText.innerText = "CALIBRATION COMPLETE. ENTERING SYSTEM...";
+                    setTimeout(finishCalibrationAndStart, 1000);
+                }
+            });
+        });
+    }
+
+    function finishCalibrationAndStart() {
+        dom.calibScreen.style.opacity = '0';
+        if (typeof webgazer !== 'undefined') webgazer.removeMouseEventListeners();
+        setTimeout(() => {
+            dom.calibScreen.style.display = 'none';
+            document.body.classList.add('hide-cursor');
+            dom.hud.style.display = 'block'; 
+            loadScene(0); 
+        }, 800);
+    }
+
+    async function initEyeTracking() {
+        if (typeof webgazer === 'undefined') return;
+        try {
+            dom.startBtn.innerText = "INITIALIZING MODEL...";
+            dom.startBtn.classList.remove('btn-ready');
+            await webgazer.setRegression('ridge')
+                .setGazeListener(function(data, clock) {
+                    if (data == null) return;
+                    processGaze(data.x, data.y);
+                }).begin();
+
+            webgazer.showVideoPreview(false).showPredictionPoints(false);
+
+            setTimeout(() => {
+                const wgVideo = document.getElementById('webgazerVideoFeed');
+                if(wgVideo && wgVideo.srcObject) dom.video.srcObject = wgVideo.srcObject;
+                dom.camWindow.style.display = 'block';
+                startDynamicEyeCrop();
+                
+                dom.startScreen.style.opacity = '0';
+                setTimeout(() => {
+                    dom.startScreen.style.display = 'none';
+                    dom.calibScreen.style.display = 'flex';
+                    setupCalibration();
+                }, 1000);
+            }, 1500);
+        } catch (err) {
+            console.error("眼动追踪初始化失败", err);
+            dom.startBtn.innerText = "CAMERA ACCESS DENIED. REFRESH.";
+        }
+    }
+
+    dom.startBtn.addEventListener('click', async () => {
+        if (typeof webgazer === 'undefined') return;
+        dom.startBtn.disabled = true;
+        if(audioCtx.state === 'suspended') await audioCtx.resume();
+        initAudio();
+        initSpeech();
+        initEyeTracking(); 
+    });
+
+    function updateHUDStatus(stateCode) {
+        if (stateCode === 0) {
+            dom.statusPanel.style.opacity = '0';
+        } else {
+            dom.statusPanel.style.opacity = '1';
+            if (stateCode === 2) {
+                dom.statusText.innerText = "LISTENING";
+                dom.statusText.style.color = "var(--bus-red)";
+                dom.statusDot.style.backgroundColor = "var(--bus-red)";
+                dom.statusDot.style.boxShadow = "0 0 5px var(--bus-red)";
+                dom.waveform.classList.add('playing');
+            } else if (stateCode === 3) {
+                dom.statusText.innerText = "CONNECTING SIGNAL...";
+                dom.statusText.style.color = "var(--sodium-orange)";
+                dom.statusDot.style.backgroundColor = "var(--sodium-orange)";
+                dom.statusDot.style.boxShadow = "0 0 8px var(--sodium-orange)";
+                dom.waveform.classList.remove('playing');
+            } else {
+                dom.statusText.innerText = "PAUSED / SEEKING";
+                dom.statusText.style.color = "var(--stone-grey)";
+                dom.statusDot.style.backgroundColor = "var(--stone-grey)";
+                dom.statusDot.style.boxShadow = "none";
+                dom.waveform.classList.remove('playing');
+            }
+        }
+    }
+
+    function loadScene(index) {
+        currentSceneIndex = index;
+        const sceneData = SCENES[currentSceneIndex];
+        
+        applyAudioConfig(sceneData.audioConfig);
+        
+        dom.bgWide.style.backgroundImage = `url('${sceneData.wideImg}')`;
+        dom.bgWide.classList.remove('ambient-pan'); 
+        
+        if (sceneData.type === 'ambient') {
+            currentState = STATE.AMBIENT;
+            dom.chapterContainer.style.opacity = '0';
+            updateHUDStatus(0);
+            dom.gazeTarget.style.display = 'none';
+            dom.bgClose.classList.remove('active');
+            
+            setTimeout(() => {
+                dom.bgWide.classList.add('active');
+                dom.bgWide.classList.add('ambient-pan');
+            }, 50);
+
+            setTimeout(() => {
+                dom.bgWide.classList.remove('active');
+                setTimeout(() => {
+                    let nextIndex = (currentSceneIndex + 1) % SCENES.length;
+                    loadScene(nextIndex);
+                }, 2000);
+            }, 6000);
+
+        } else if (sceneData.type === 'interactive') {
+            dom.chapterContainer.style.opacity = '1';
+            dom.chapterNum.innerText = `0${interactiveChapterCount} / 03`;
+            interactiveChapterCount = interactiveChapterCount >= 3 ? 1 : interactiveChapterCount + 1;
+            
+            dom.bgClose.style.backgroundImage = `url('${sceneData.closeImg}')`;
+            dom.bus.style.backgroundImage = `url('${sceneData.transImg}')`;
+            
+            dom.subContainer.style.left = sceneData.textLayout.left;
+            dom.subContainer.style.top = sceneData.textLayout.top;
+            dom.subContainer.style.width = sceneData.textLayout.width;
+            dom.subContainer.style.textAlign = sceneData.textLayout.textAlign;
+
+            enterWideShot();
+        }
+    }
+
+    function processGaze(rawX, rawY) {
+        if (currentState !== STATE.WIDE && currentState !== STATE.CLOSE_UP) return;
+
+        smoothGazeX += (rawX - smoothGazeX) * 0.25;
+        smoothGazeY += (rawY - smoothGazeY) * 0.25;
+
+        const rect = dom.gazeTarget.getBoundingClientRect();
+        const inZone = (smoothGazeX >= rect.left && smoothGazeX <= rect.right &&
+                        smoothGazeY >= rect.top && smoothGazeY <= rect.bottom);
+        
+        if (inZone) {
+            if (lookAwayTimer) { clearTimeout(lookAwayTimer); lookAwayTimer = null; }
+            if (!isLooking) handleLookAt();
+        } else {
+            if (isLooking && !lookAwayTimer) {
+                lookAwayTimer = setTimeout(() => {
+                    handleLookAway();
+                    lookAwayTimer = null;
+                }, BLINK_TOLERANCE_MS);
+            }
+        }
+    }
+
+    function enterWideShot() {
+        currentState = STATE.WIDE;
+        const sceneData = SCENES[currentSceneIndex];
+        
+        dom.bgWide.classList.add('active');
+        dom.bgClose.classList.remove('active');
+        updateHUDStatus(1); 
+        
+        dom.gazeTarget.style.left = sceneData.wideTarget.left;
+        dom.gazeTarget.style.top = sceneData.wideTarget.top;
+        dom.gazeTarget.style.width = sceneData.wideTarget.width;
+        dom.gazeTarget.style.height = sceneData.wideTarget.height;
+        dom.gazeTarget.style.display = 'block';
+    }
+
+    function enterCloseUp() {
+        currentState = STATE.CLOSE_UP;
+        const sceneData = SCENES[currentSceneIndex];
+        
+        dom.bgWide.classList.remove('active');
+        dom.bgClose.classList.add('active');
+        
+        dom.gazeTarget.style.left = sceneData.closeTarget.left;
+        dom.gazeTarget.style.top = sceneData.closeTarget.top;
+        dom.gazeTarget.style.width = sceneData.closeTarget.width;
+        dom.gazeTarget.style.height = sceneData.closeTarget.height;
+
+        currentLineIndex = 0;
+        currentCharIndex = 0;
+        lineState = 'IDLE'; 
+        dom.subtitle.innerHTML = '';
+        if (lookAwayTimer) { clearTimeout(lookAwayTimer); lookAwayTimer = null; }
+        
+        // 中断任何可能正在发声的引擎
+        currentAudioElement.pause();
+        if(window.speechSynthesis) window.speechSynthesis.cancel();
+        clearTimingTimers();
+        
+        handleLookAt();
+    }
+
+    async function playAndTypeCurrentLine() {
+        if (!isLooking || currentState !== STATE.CLOSE_UP) return;
+        
+        const sceneData = SCENES[currentSceneIndex];
+        const lines = sceneData.storyLines;
+        if (currentLineIndex >= lines.length) {
+            let t = setTimeout(showChoices, 1500);
+            timingTimers.push(t);
+            return;
+        }
+
+        let lineText = lines[currentLineIndex];
+        currentCharIndex = 0;
+        dom.subtitle.innerHTML = "";
+        
+        lineState = 'FETCHING';
+        updateHUDStatus(3); // Connecting signal (黄色灯)
+
+        try {
+            const cacheKey = `${sceneData.id}_${currentLineIndex}`;
+            let audioUrl = audioCache[cacheKey];
+            
+            // 尝试通过大模型接口请求绝对真实的人声
+            if (!audioUrl) {
+                audioUrl = await fetchAIAudio(lineText, sceneData.aiVoice);
+                if (audioUrl) audioCache[cacheKey] = audioUrl;
+            }
+
+            if (audioUrl) {
+                currentAudioElement.src = audioUrl;
+                // 当音频准备好，开始播放并同步打字机
+                currentAudioElement.onloadedmetadata = () => {
+                    // 神奇的算法：完美同步文字与语音长度！
+                    typingSpeedMs = (currentAudioElement.duration * 1000) / lineText.length;
+                    if (typingSpeedMs > 100) typingSpeedMs = 80; 
+
+                    if (!isLooking || currentState !== STATE.CLOSE_UP) return;
+                    currentAudioElement.play();
+                    lineState = 'SPEAKING';
+                    updateHUDStatus(2); // Listening (红灯波形)
+                    typeWriterForCurrentLine();
+                };
+                
+                currentAudioElement.onended = () => {
+                    if (currentState !== STATE.CLOSE_UP) return; 
+                    dom.subtitle.innerHTML = lineText; 
+                    lineState = 'WAITING_NEXT';
+                    if (!isLooking) return;
+                    triggerNextLineSequence();
+                };
+                
+                currentAudioElement.onerror = () => fallbackMechanicalVoice(lineText, sceneData);
+            } else {
+                // 如果 API Key 没填或者请求失败，平滑降级到系统语音
+                fallbackMechanicalVoice(lineText, sceneData);
+            }
+        } catch(e) {
+            fallbackMechanicalVoice(lineText, sceneData);
+        }
+    }
+
+    // 本地降级：浏览器自带机械音
+    function fallbackMechanicalVoice(text, sceneData) {
+        if (!isLooking || currentState !== STATE.CLOSE_UP) return;
+        
+        currentUtterance = new SpeechSynthesisUtterance(text);
+        let preferredVoice = ukVoices.find(v => v.name.includes('Male')) || ukVoices[0];
+        if (preferredVoice) currentUtterance.voice = preferredVoice;
+        
+        currentUtterance.lang = 'en-GB';
+        currentUtterance.pitch = sceneData.voiceConfig.pitch; 
+        currentUtterance.rate = sceneData.voiceConfig.rate; 
+
+        let onEndFired = false;
+        currentUtterance.onend = function(e) {
+            if (onEndFired) return;
+            onEndFired = true;
+
+            if (currentState !== STATE.CLOSE_UP) return; 
+            dom.subtitle.innerHTML = text; 
+            lineState = 'WAITING_NEXT';
+            if (!isLooking) return;
+            triggerNextLineSequence();
+        };
+
+        window.speechSynthesis.speak(currentUtterance);
+        typingSpeedMs = 55; // 机械音的固定打字速度
+        lineState = 'SPEAKING_FALLBACK';
+        updateHUDStatus(2);
+        typeWriterForCurrentLine();
+    }
+
+    function triggerNextLineSequence() {
+        let t1 = setTimeout(() => {
+            if (!isLooking || currentState !== STATE.CLOSE_UP) return;
+            dom.subtitle.innerHTML = ""; 
+            
+            let t2 = setTimeout(() => {
+                if (!isLooking || currentState !== STATE.CLOSE_UP) return;
+                currentLineIndex++;
+                lineState = 'IDLE';
+                playAndTypeCurrentLine();
+            }, 500);
+            timingTimers.push(t2);
+        }, 1500);
+        timingTimers.push(t1);
+    }
+
+    function typeWriterForCurrentLine() {
+        if (!isLooking || currentState !== STATE.CLOSE_UP) return;
+        let lineText = SCENES[currentSceneIndex].storyLines[currentLineIndex];
+        if (currentCharIndex < lineText.length) {
+            dom.subtitle.innerHTML = lineText.substring(0, currentCharIndex + 1);
+            currentCharIndex++;
+            let t = setTimeout(typeWriterForCurrentLine, typingSpeedMs); 
+            timingTimers.push(t);
+        }
+    }
+
+    function handleLookAt() {
+        isLooking = true;
+        lowNoiseGain.gain.setTargetAtTime(0.1, audioCtx.currentTime, 0.5); 
+        highNoiseGain.gain.setTargetAtTime(0.02, audioCtx.currentTime, 0.5); 
+
+        if (currentState === STATE.WIDE) {
+            let t = setTimeout(() => {
+                if(isLooking && currentState === STATE.WIDE) enterCloseUp();
+            }, 3000); 
+            timingTimers.push(t);
+        } else if (currentState === STATE.CLOSE_UP) {
+            dom.subContainer.classList.add('focused');
+            
+            if (lineState === 'PAUSED') {
+                currentAudioElement.play();
+                lineState = 'SPEAKING';
+                updateHUDStatus(2);
+                typeWriterForCurrentLine(); 
+            } else if (lineState === 'PAUSED_FALLBACK') {
+                window.speechSynthesis.resume();
+                lineState = 'SPEAKING_FALLBACK';
+                updateHUDStatus(2);
+                typeWriterForCurrentLine(); 
+            } else if (lineState === 'WAITING_NEXT') {
+                triggerNextLineSequence(); 
+            } else if (lineState === 'IDLE' || lineState === 'FETCHING') {
+                playAndTypeCurrentLine(); 
+            }
+        }
+    }
+
+    function handleLookAway() {
+        isLooking = false;
+        const audioCfg = SCENES[currentSceneIndex].audioConfig;
+        lowNoiseGain.gain.setTargetAtTime(audioCfg.lowGain, audioCtx.currentTime, 0.3); 
+        highNoiseGain.gain.setTargetAtTime(audioCfg.highGain, audioCtx.currentTime, 0.3); 
+
+        updateHUDStatus(1);
+
+        if (currentState === STATE.WIDE) {
+            clearTimingTimers();
+        }
+
+        if (currentState === STATE.CLOSE_UP) {
+            dom.subContainer.classList.remove('focused');
+            clearTimingTimers(); 
+            
+            if (lineState === 'SPEAKING' || lineState === 'FETCHING') {
+                currentAudioElement.pause();
+                lineState = 'PAUSED';
+            } else if (lineState === 'SPEAKING_FALLBACK' && window.speechSynthesis.speaking) {
+                window.speechSynthesis.pause(); 
+                lineState = 'PAUSED_FALLBACK';
+            }
+        }
+    }
+
+    function showChoices() {
+        currentState = STATE.CHOICE;
+        dom.gazeTarget.style.display = 'none';
+        
+        dom.subContainer.style.opacity = ''; 
+        dom.subContainer.classList.remove('focused');
+        
+        updateHUDStatus(0);
+        
+        setTimeout(() => {
+            dom.choiceUI.style.display = 'flex';
+            document.body.classList.remove('hide-cursor');
+        }, 1500);
+    }
+
+    window.makeChoice = function(type) {
+        dom.choiceUI.style.display = 'none';
+        document.body.classList.add('hide-cursor'); 
+        
+        currentState = STATE.WIDE;
+        dom.bgClose.classList.remove('active');
+        dom.bgWide.classList.add('active');
+
+        setTimeout(() => triggerBusTransition(), 1000);
+    }
+
+    function triggerBusTransition() {
+        currentState = STATE.BUS;
+        playBusSound(); 
+        dom.bus.classList.add('bus-drive'); 
+        
+        lineState = 'IDLE';
+        currentAudioElement.pause();
+        window.speechSynthesis.pause();
+        window.speechSynthesis.cancel();
+        clearTimingTimers();
+
+        setTimeout(() => dom.bgWide.classList.remove('active'), 750);
+
+        setTimeout(() => {
+            dom.bus.classList.remove('bus-drive');
+            let nextIndex = (currentSceneIndex + 1) % SCENES.length;
+            loadScene(nextIndex);
+        }, 1800);
+    }
+
+    window.speechSynthesis.onvoiceschanged = function() { initSpeech(); };
+</script>
+
+</body>
+</html>
